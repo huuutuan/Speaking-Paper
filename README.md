@@ -7,6 +7,10 @@
 •	Python: phiên bản 3.9 trở lên (dùng cho dịch vụ Text-to-Speech và Summarization)
 •	Trình duyệt web: Chrome, Edge hoặc Firefox
 •	Thiết bị di động: Android/iOS (nếu chạy app Expo trên thiết bị thật)
+"@tanstack/react-query": "^5.90.12",
+"expo": "~54.0.30",
+"expo-av": "~16.0.8",
+"expo-router": "~6.0.21",
 
 3.2	Cài đặt Backend
 •	npm install (depedencies)
