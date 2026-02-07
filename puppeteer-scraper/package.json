@@ -3,25 +3,52 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon index1.js",
+    "start": "node index1.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@bull-board/api": "^6.14.2",
+    "@bull-board/express": "^6.14.2",
+    "axios": "^1.13.2",
+    "bcryptjs": "^2.4.3",
+    "bull": "^4.16.5",
+    "cheerio": "^1.1.2",
+    "compression": "^1.8.1",
     "compromise": "^14.14.3",
+    "cookie": "^1.0.2",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.19",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
+    "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^8.2.1",
     "fs": "^0.0.1-security",
+    "helmet": "^8.1.0",
+    "joi": "^18.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "mailtrap": "^3.4.0",
     "mongodb": "^6.11.0",
     "mongoose": "^8.9.3",
     "multer": "^1.4.5-lts.1",
+    "music-metadata": "^11.10.6",
     "natural": "^8.0.1",
+    "ngrok": "^5.0.0-beta.2",
     "openai": "^4.68.1",
+    "p-limit": "^7.2.0",
+    "parser": "^0.1.4",
     "puppeteer": "^23.11.1",
+    "rss-parser": "^3.13.0",
     "upgrade": "^1.1.0",
+    "winston": "^3.18.3",
     "xlsx": "^0.18.5"
   },
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
 }

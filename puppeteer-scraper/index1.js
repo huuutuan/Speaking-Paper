@@ -1,45 +1,256 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const helmet = require('helmet');
+const cookieParser = require("cookie-parser");
+const compression = require('compression');
+const mongoSanitize = require('express-mongo-sanitize');
+const {createBullBoard} = require('@bull-board/api');
+const {BullAdapter} = require('@bull-board/api/bullAdapter');
+const { ExpressAdapter } = require('@bull-board/express');
 // const { connectDB, insertNew2DB } = require("./config/db.js");
-const { newRouter } = require("./routes/newRoute.js");
-const { scraper } = require("./scraper/scraper.js");
+// const { newRouter } = require("./routes/newRoute.js");
+// const { scraper } = require("./scraper/scraper.js");
 // const { newsModel } = require("./models/newsModel.js");
-const mongoose = require("mongoose");
-const NewsModel = require("./models/newsModel.js");
+// const mongoose = require("mongoose");
+// const NewsModel = require("./models/newsModel.js");
+
+const logger = require('./utils/logger.js');
+const errorHandler = require('./middleware/errorHandler.js');
+const rateLimiter = require('./middleware/rateLimiter.js');
+
+
+// Services
+const FetchService = require('./service/fetch.js');
+const { getInstance: getDB } = require('./service/database.js');
+const ArticleService = require('./service/articleSrv.js');
+const QueueService = require('./service/queue.js');
+const { version } = require("joi");
+
+
+//Routes
+const healthRoutes = require('./routes/health.js');
+const feedsRoutes = require('./routes/feeds.js');
+const articlesRoutes = require('./routes/articles.js');
+const statsRoutes = require('./routes/stats.js'); 
+const article = require("./validators/article.js");
+const articleAudioRoutes = require("./routes/articleAudio.js");
 
 
 const app = express ();
-app.use(express.json());
-app.use(cors())
-
-
 const PORT = process.env.PORT || 3000;
+logger.info(PORT);
+// app.use(express.json()); // allow us to parse incoming request: req.body
+// app.use(cookieParser()); // allow us to parse incoming cookies
+// app.use(cors());z
 
-app.listen(PORT, () => {
-	console.log("Server Listening on Port: ", PORT);
-})
 
+//Middlewares
+app.use(helmet()); // secutiry headers
+app.use(cors()); // enable CORS
+app.use(express.json({ limit: '10mb' }));// compress responses
+app.use(express.urlencoded({ extended: true, limit: '10mb'}));
+app.use(mongoSanitize()); // prevent NoSQL injection attacks
+//audio routes
+// app.use('/api/v1/articles/audios', articleAudioRoutes);
+//Rate limiting
+app.use('/api', rateLimiter);
+
+//request logging
+if(process.env.NODE_ENV === 'production') {
+	app.use((req, res, next) => {
+		logger.info(`${req.method} ${req.path}`);
+		next();
+	});
+}
+
+// initialize services
+let db, articleService, fetchService, queueService;
+
+async function initializeServices() {
+	try {
+		logger.info('Initializing services...');
+
+		// connect to db
+		db = getDB();
+		await db.connect();
+
+		//initialize article service
+		articleService = new ArticleService();
+		articleService.initialize(db.getConnection());
+
+		//initialize fetcher service
+		const concurrency = parseInt(process.env.FETCH_CONCURRENVY, 10) || 3;
+		fetchService = new FetchService(articleService, concurrency);
+
+		// initialize queue service
+		queueService = new QueueService();
+
+		//setup queue processor
+		queueService.getQueue().process('fetch-feed', 3, async (job) => {
+			const { feed } = job.data;
+			logger.info('Processing queue job', {
+				jobId: job.id,
+				category: feed.category
+			});
+
+			const result = await fetchService.fetchFeed(feed);
+			return result;
+		});
+
+		logger.info('All services initialized successfully');
+		
+	} catch (error) {
+		logger.error('Failed to initialize services', { error: error.message});
+		process.exit(1);
+	}
+}
+
+//Root endpoint
 app.get("/", (req, res) => {
-	const status = {
-		"Status": "Running"
-	};
+	res.json({
+		name: 'VnExpress Rss tracker API',
+		version: '1.0.0',
+		description: 'tracker articles from VnExpress Rss feeds',
+		endpoints: {
+			health: '/health',
+			articles: '/api/v1/articles',
+			feeds: '/api/v1/feeds',
+			stats: '/api/v1/stats',
+			queue: '/admin/queues'
+		},
+		features: [
+			'Mongoose schema validation',
+			'Raw MongoDB aggregation',
+			'Bull queue processing',
+			'Full-text search',
+			'Rate limiting',
+			'Health checks',
+			'Queue dashboard'
+		],
+		documentation: 'a'
+	})
+});
 
-	res.send(status);
-})
-
-mongoose.connect("mongodb+srv://huutuan2001:huutuan2001@huutuan2001.7his2.mongodb.net/newsData?retryWrites=true&w=majority&appName=huutuan2001")
-.then(()=> {
-	console.log("aaaaa");
-	
-})
-.catch(() => {
-	console.log("bbb");
-	
-})
 
 
+// Bull Board (queue dashboard)
 
-app.use("/api/news", newRouter)
+
+//404 handle
+
+
+//Error handler
+
+
+//Start Server
+async function startServer() {
+	try {
+		await initializeServices();
+		
+		// Health check (no rate limit)
+		app.use('/health', healthRoutes(db));
+
+		// API ROUTES
+		app.use('/api/v1/articles', articlesRoutes(articleService));
+		app.use('/api/v1/stats', statsRoutes(articleService));
+		app.use('/api/v1/feeds', feedsRoutes(queueService));
+		app.use('/api/v1/articles/audios', articleAudioRoutes);
+
+		const serverAdapter = new ExpressAdapter();
+		serverAdapter.setBasePath('/admin/queues');
+
+		createBullBoard({
+			queues: [new BullAdapter(queueService.getQueue())],
+			serverAdapter: serverAdapter
+		});
+
+		app.use('/admin/queues', serverAdapter.getRouter());
+
+		app.use((req, res) => {
+			res.status(404).json({
+				success: false,
+				message: 'Route bot found',
+				path: req.path
+			});
+		});
+		app.use(errorHandler);
+
+		const server = app.listen(PORT, () => {
+			logger.info('='.repeat(50));
+			logger.info(`Server Listening on Port: ${PORT}`);
+			logger.info(`Enviroment: ${process.env.NODE_ENV || 'development'}`);
+			logger.info(`Health Check: http://localhost:${PORT}/health`);
+			logger.info(`API Base http://localhost:${PORT}/api/v1`);
+			logger.info(`Queue Dashbord: http://localhost:${PORT}/admin/queues`);
+			logger.info('='.repeat(50));
+		});
+
+		
+		//graceful shutdown
+		const gracefulShutdown = async (signal) => {
+			logger.info(`${signal} received, shutting down gracefully`);
+
+			server.close(async () => {
+				logger.info('HTTP server closed');
+
+				try {
+					await queueService.getQueue().close();
+					logger.info('Queue service closed');
+
+					await db.close();
+					logger.info('Database connection closed');
+
+					logger.info('Graceful shutdown completed');
+					process.exit(0);
+				} catch(e) {
+					logger.error('Error during shutdown', { error: e.message});
+					process.exit(1);
+				}
+			});
+
+			//Force shutdown after 30 seconds
+			setTimeout(() => {
+				logger.error('Forced shutdown after timeout');
+				process.exit(1);
+			}, 30000);
+		};
+
+		process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+		process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+	} catch (error) {
+		logger.error('Failed to start server', { error: error.message});
+		process.exit(1);
+	}
+
+}
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+	logger.error('Uncaught Exception', { error: error.message, stack: error.stack });
+	process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+	logger.error('Unhandled Rejection', { reason });
+	logger.error('Promise', {promise});
+	process.exit(1);
+});
+
+startServer();
+// app.listen(PORT, () => {
+// 	console.log("Server Listening on Port: ", PORT);
+// })
+
+// app.get("/", (req, res) => {
+// 	const status = {
+// 		"Status": "Running"
+// 	};
+
+// 	res.send(status);
+// })
+
+// app.use("/api/news", newRouter)
 
 
 // connectDB();

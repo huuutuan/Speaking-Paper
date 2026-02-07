@@ -1,0 +1,22 @@
+# ======================
+# Python (global)
+# ======================
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# Python tools
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+coverage.xml
+
+# Jupyter
+.ipynb_checkpoints/
