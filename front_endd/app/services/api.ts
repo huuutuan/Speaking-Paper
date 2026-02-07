@@ -1,4 +1,4 @@
-const API_URL = 'http://192.168.100.208:3000/api/v1';
+const API_URL = 'http://172.20.10.4:3000/api/v1';
 import { Article, ArticleDetail } from '@/type/index';
 // =======================
 // BASIC TYPES (inline)

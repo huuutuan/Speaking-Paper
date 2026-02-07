@@ -66,7 +66,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const { sound } = await Audio.Sound.createAsync(
         {
-          uri: `http://192.168.100.208:3000${article.audio.streamUrl}`,
+          uri: `http://172.20.10.4:3000${article.audio.streamUrl}`,
         },
         { shouldPlay: true },
         onPlaybackStatusUpdate

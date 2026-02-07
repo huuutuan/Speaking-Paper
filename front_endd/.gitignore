@@ -1,0 +1,10 @@
+# Expo
+.expo/
+.expo-shared/
+web-build/
+
+# Node
+node_modules/
+
+# Metro / RN cache
+.metro-health-check*
